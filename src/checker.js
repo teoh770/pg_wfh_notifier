@@ -1,5 +1,19 @@
 import { addDays, formatDisplayDate, localDateInTz, weekdayOfLocalDate } from './tz.js';
 
+export function buildMessage({ tomorrow, reading, wfh }) {
+  const hour = reading.datetime_local.slice(11, 16);
+  return [
+    `${wfh ? '🌫️' : '🌤️'} WFH Notice — Tomorrow (${formatDisplayDate(tomorrow)})`,
+    '',
+    `Station: ${reading.station_location ?? 'Unknown'}`,
+    `API reading at ${hour}: ${reading.api_value}`,
+    '',
+    wfh
+      ? 'Air pollution has reached the unhealthy threshold. Tomorrow is WORK FROM HOME. 😷'
+      : 'Air quality is below the threshold. Tomorrow is work from office as usual.',
+  ].join('\n');
+}
+
 export function createChecker({
   config,
   db,
@@ -10,21 +24,6 @@ export function createChecker({
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
 }) {
   const { checkTime, fallbackTime, threshold, timezone, weekendDays, retryMinutes, retryIntervalMinutes } = config.wfh;
-
-  function buildMessage({ tomorrow, reading, usedFallback, wfh }) {
-    const hour = reading.datetime_local.slice(11, 16);
-    return [
-      `${wfh ? '🌫️' : '🌤️'} WFH Notice — Tomorrow (${formatDisplayDate(tomorrow)})`,
-      '',
-      `Station: ${reading.station_location ?? 'Unknown'}`,
-      `API reading at ${hour}${usedFallback ? ' (fallback)' : ''}: ${reading.api_value}`,
-      `Threshold: ${threshold}`,
-      '',
-      wfh
-        ? 'Air pollution has reached the unhealthy threshold. Tomorrow is WORK FROM HOME. 😷'
-        : 'Air quality is below the threshold. Tomorrow is work from office as usual.',
-    ].join('\n');
-  }
 
   async function runCheck() {
     const today = localDateInTz(now(), timezone);
@@ -76,16 +75,30 @@ export function createChecker({
     }
 
     const wfh = reading.api_value >= threshold;
-    const message = buildMessage({ tomorrow, reading, usedFallback, wfh });
+    const message = buildMessage({ tomorrow, reading, wfh });
 
     if (!telegram) {
       logger.info(`Telegram not configured — notice NOT sent, only logged:\n${message}`);
       return { status: 'log-only', wfh, apiValue: reading.api_value, readingDatetime: reading.datetime_local, usedFallback };
     }
 
-    const sent = await telegram.sendMessage(message);
-    if (!sent) {
-      logger.error('Telegram send failed after retries. Notice NOT recorded; re-run the check to retry.');
+    const subscribers = db.listSubscribers();
+    if (subscribers.length === 0) {
+      logger.warn(`No subscribers yet — notice for ${tomorrow} NOT sent (not recorded):\n${message}`);
+      return { status: 'no-subscribers', wfh, apiValue: reading.api_value, readingDatetime: reading.datetime_local, usedFallback };
+    }
+
+    let sentCount = 0;
+    const removed = [];
+    for (const s of subscribers) {
+      const r = await telegram.sendMessage(s.chat_id, message);
+      if (r.ok) sentCount++;
+      else if (r.permanent) removed.push(s.chat_id);
+    }
+    for (const chatId of removed) db.removeSubscriber(chatId);
+
+    if (sentCount === 0) {
+      logger.error('Telegram send failed for all subscribers. Notice NOT recorded; re-run the check to retry.');
       return { status: 'send-failed', wfh, apiValue: reading.api_value, readingDatetime: reading.datetime_local, usedFallback };
     }
 
@@ -98,9 +111,18 @@ export function createChecker({
       messageText: message,
     });
     logger.info(
-      `Notice for ${tomorrow} sent (WFH: ${wfh}, API ${reading.api_value} at ${reading.datetime_local.slice(11, 16)}${usedFallback ? ' fallback' : ''}).`
+      `Notice for ${tomorrow} sent to ${sentCount}/${subscribers.length} subscriber(s)` +
+        `${removed.length ? `; removed ${removed.length} unreachable: ${removed.join(', ')}` : ''} ` +
+        `(WFH: ${wfh}, API ${reading.api_value} at ${reading.datetime_local.slice(11, 16)}${usedFallback ? ' fallback' : ''}).`
     );
-    return { status: 'sent', wfh, apiValue: reading.api_value, readingDatetime: reading.datetime_local, usedFallback };
+    return {
+      status: 'sent',
+      wfh,
+      apiValue: reading.api_value,
+      readingDatetime: reading.datetime_local,
+      usedFallback,
+      sentCount,
+    };
   }
 
   return { runCheck };

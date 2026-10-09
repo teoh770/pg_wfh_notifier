@@ -8,7 +8,13 @@
   "scripts": {
     "start": "node src/index.js",
     "once": "node src/index.js --once",
-    "chat-id": "node src/index.js --chat-id",
+    "subs": "node src/index.js --subs",
+    "allowlist": "node src/index.js --allowlist",
+    "msg:wfh": "node src/index.js --send-test wfh",
+    "msg:wfo": "node src/index.js --send-test wfo",
+    "msg:welcome": "node src/index.js --send-test welcome",
+    "msg:status": "node src/index.js --send-test status",
+    "msg:trend": "node src/index.js --send-test trend",
     "test": "node --test"
   },
   "engines": {

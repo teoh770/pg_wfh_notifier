@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDatabase } from '../src/db.js';
-import { createChecker } from '../src/checker.js';
+import { createChecker, buildMessage } from '../src/checker.js';
 import { addDays, formatDisplayDate, localDateInTz, weekdayOfLocalDate } from '../src/tz.js';
 
 const TZ = 'Asia/Kuala_Lumpur';
@@ -29,7 +29,15 @@ function makeRows(date, hours) {
   }));
 }
 
-function setup({ rowsFor, now = weekdayNow(), telegram = 'real', wfh = {}, fetchSequence = null } = {}) {
+function setup({
+  rowsFor,
+  now = weekdayNow(),
+  telegram = 'real',
+  telegramFailFor = [],
+  subscribers = ['100'],
+  wfh = {},
+  fetchSequence = null,
+} = {}) {
   const db = openDatabase(':memory:');
   const date = localDateInTz(now, TZ);
   const fetches = fetchSequence ?? [rowsFor ? rowsFor(date) : []];
@@ -43,7 +51,19 @@ function setup({ rowsFor, now = weekdayNow(), telegram = 'real', wfh = {}, fetch
   const sent = [];
   const logs = [];
   const logger = { info: (m) => logs.push(m), warn: (m) => logs.push(m), error: (m) => logs.push(m) };
-  const tg = telegram === 'none' ? null : { sendMessage: async (t) => { sent.push(t); return true; } };
+  const tg =
+    telegram === 'none'
+      ? null
+      : {
+          sendMessage: async (chatId, text) => {
+            if (telegramFailFor.includes(chatId)) return { ok: false, permanent: true };
+            sent.push({ chatId, text });
+            return { ok: true };
+          },
+        };
+  for (const c of subscribers) {
+    db.upsertSubscriber({ chatId: c, userId: `u${c}`, type: 'private', name: `Sub ${c}`, subscribedAt: new Date().toISOString() });
+  }
   const config = {
     wfh: {
       checkTime: '21:00',
@@ -66,9 +86,10 @@ test('sends WFH notice when check-time reading >= threshold', async () => {
   assert.equal(result.status, 'sent');
   assert.equal(result.wfh, true);
   assert.equal(sent.length, 1);
-  assert.match(sent[0], /WORK FROM HOME/);
-  assert.match(sent[0], /21:00: 210/);
-  assert.match(sent[0], /Minden, PULAU PINANG/);
+  assert.equal(sent[0].chatId, '100');
+  assert.match(sent[0].text, /WORK FROM HOME/);
+  assert.match(sent[0].text, /21:00: 210/);
+  assert.match(sent[0].text, /Minden, PULAU PINANG/);
   assert.ok(db.getNotification(addDays(date, 1)));
 });
 
@@ -77,7 +98,7 @@ test('sends work-from-office notice when reading < threshold', async () => {
   const result = await checker.runCheck();
   assert.equal(result.status, 'sent');
   assert.equal(result.wfh, false);
-  assert.match(sent[0], /work from office/);
+  assert.match(sent[0].text, /work from office/);
 });
 
 test('threshold is inclusive: API == 200 means WFH', async () => {
@@ -92,7 +113,7 @@ test('falls back to fallback time when check-time reading is missing', async () 
   assert.equal(result.status, 'sent');
   assert.equal(result.usedFallback, true);
   assert.equal(result.wfh, true);
-  assert.match(sent[0], /20:00 \(fallback\): 250/);
+  assert.match(sent[0].text, /20:00: 250/);
 });
 
 test('falls back when check-time reading exists but value is null', async () => {
@@ -135,6 +156,40 @@ test('log-only mode when telegram is not configured', async () => {
   assert.equal(db.getNotification(addDays(date, 1)), null);
 });
 
+test('no subscribers -> no-subscribers status, not recorded', async () => {
+  const { checker, db, date } = setup({ rowsFor: (d) => makeRows(d, { '21:00': 210 }), subscribers: [] });
+  const result = await checker.runCheck();
+  assert.equal(result.status, 'no-subscribers');
+  assert.equal(db.getNotification(addDays(date, 1)), null);
+});
+
+test('sends to all subscribers', async () => {
+  const { checker, db, sent, date } = setup({
+    rowsFor: (d) => makeRows(d, { '21:00': 210 }),
+    subscribers: ['100', '200', '300'],
+  });
+  const result = await checker.runCheck();
+  assert.equal(result.status, 'sent');
+  assert.equal(result.sentCount, 3);
+  assert.deepEqual(sent.map((s) => s.chatId), ['100', '200', '300']);
+  assert.ok(db.getNotification(addDays(date, 1)));
+});
+
+test('permanently failed chats are removed from subscribers', async () => {
+  const { checker, db, sent } = setup({
+    rowsFor: (d) => makeRows(d, { '21:00': 210 }),
+    subscribers: ['100', '200'],
+    telegramFailFor: ['100'],
+  });
+  const result = await checker.runCheck();
+  assert.equal(result.status, 'sent');
+  assert.equal(result.sentCount, 1);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].chatId, '200');
+  assert.equal(db.getSubscriber('100'), null);
+  assert.ok(db.getSubscriber('200'));
+});
+
 test('retries fetch until data appears', async () => {
   const { checker, sent } = setup({
     rowsFor: null,
@@ -154,6 +209,18 @@ test('db upsert: same station+datetime updates instead of duplicating', () => {
   db.upsertReadings(row(180), '2026-10-09T21:05:00Z');
   assert.equal(db.countReadings(), 1);
   assert.equal(db.getReading('2026-10-09T21:00:00').api_value, 180);
+});
+
+test('buildMessage renders notice without threshold/fallback details', () => {
+  const text = buildMessage({
+    tomorrow: '2026-10-12',
+    reading: { datetime_local: '2026-10-11T21:00:00', api_value: 215, station_location: 'Minden, PULAU PINANG' },
+    wfh: true,
+  });
+  assert.match(text, /WORK FROM HOME/);
+  assert.match(text, /21:00: 215/);
+  assert.doesNotMatch(text, /Threshold/);
+  assert.doesNotMatch(text, /fallback/);
 });
 
 test('tz utils: date math and weekdays', () => {

@@ -15,7 +15,10 @@
   },
   "telegram": {
     "botToken": "123456789:ABC-put-your-botfather-token-here",
-    "chatId": "123456789"
+    "allowedUserIds": ["123456789"],
+    "allowedUsernames": [],
+    "adminUserIds": ["123456789"],
+    "welcomeMessage": ""
   },
   "database": {
     "path": "data.sqlite"

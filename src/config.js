@@ -16,7 +16,7 @@ const DEFAULTS = {
     timezone: 'Asia/Kuala_Lumpur',
     weekendDays: [0, 6],
   },
-  telegram: { botToken: '', chatId: '' },
+  telegram: { botToken: '', allowedUserIds: [], allowedUsernames: [], adminUserIds: [], welcomeMessage: '' },
   database: { path: 'data.sqlite' },
 };
 
@@ -84,13 +84,27 @@ export function loadConfig(path = process.env.CONFIG_PATH || 'config.json') {
     errors.push('wfh.retryIntervalMinutes must be an integer >= 1');
   }
   if (!cfg.database.path || typeof cfg.database.path !== 'string') errors.push('database.path must be a file path');
+  if (!Array.isArray(cfg.telegram.allowedUserIds)) {
+    errors.push('telegram.allowedUserIds must be an array of Telegram user ids');
+  }
+  if (!Array.isArray(cfg.telegram.allowedUsernames)) {
+    errors.push('telegram.allowedUsernames must be an array of Telegram usernames');
+  }
+  if (!Array.isArray(cfg.telegram.adminUserIds)) {
+    errors.push('telegram.adminUserIds must be an array of Telegram user ids');
+  }
+  if (cfg.telegram.welcomeMessage !== undefined && typeof cfg.telegram.welcomeMessage !== 'string') {
+    errors.push('telegram.welcomeMessage must be a string');
+  }
 
   if (errors.length) throw new Error(`Invalid configuration:\n  - ${errors.join('\n  - ')}`);
 
   cfg.telegram.botToken = String(cfg.telegram.botToken ?? '').trim();
-  cfg.telegram.chatId = String(cfg.telegram.chatId ?? '').trim();
-  if ((cfg.telegram.botToken === '') !== (cfg.telegram.chatId === '')) {
-    console.warn('[WARN] Only one of telegram.botToken / telegram.chatId is set — Telegram notices disabled until both are set.');
-  }
+  cfg.telegram.allowedUserIds = cfg.telegram.allowedUserIds.map(String);
+  cfg.telegram.allowedUsernames = cfg.telegram.allowedUsernames
+    .map((u) => String(u).trim().replace(/^@/, '').toLowerCase())
+    .filter((u) => u !== '');
+  cfg.telegram.adminUserIds = cfg.telegram.adminUserIds.map(String);
+  cfg.telegram.welcomeMessage = typeof cfg.telegram.welcomeMessage === 'string' ? cfg.telegram.welcomeMessage : '';
   return cfg;
 }

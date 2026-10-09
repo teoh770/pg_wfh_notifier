@@ -36,11 +36,51 @@ test('times are normalized to zero-padded HH:MM', () => {
   });
 });
 
-test('partial telegram config is kept (needed by --chat-id), not wiped', () => {
-  withTempConfig({ telegram: { botToken: 'abc' } }, (path) => {
+test('allowedUserIds are coerced to strings', () => {
+  withTempConfig({ telegram: { allowedUserIds: [123, '456'] } }, (path) => {
     const cfg = loadConfig(path);
-    assert.equal(cfg.telegram.botToken, 'abc');
-    assert.equal(cfg.telegram.chatId, '');
+    assert.deepEqual(cfg.telegram.allowedUserIds, ['123', '456']);
+  });
+});
+
+test('allowedUserIds must be an array', () => {
+  withTempConfig({ telegram: { allowedUserIds: 'nope' } }, (path) => {
+    assert.throws(() => loadConfig(path), /allowedUserIds/);
+  });
+});
+
+test('allowedUsernames are normalized (@ stripped, lowercased, empties dropped)', () => {
+  withTempConfig({ telegram: { allowedUsernames: ['@Teo', 'Colleague', '  ', 42] } }, (path) => {
+    const cfg = loadConfig(path);
+    assert.deepEqual(cfg.telegram.allowedUsernames, ['teo', 'colleague', '42']);
+  });
+});
+
+test('allowedUsernames must be an array', () => {
+  withTempConfig({ telegram: { allowedUsernames: 'nope' } }, (path) => {
+    assert.throws(() => loadConfig(path), /allowedUsernames/);
+  });
+});
+
+test('adminUserIds are coerced to strings and must be an array', () => {
+  withTempConfig({ telegram: { adminUserIds: [123] } }, (path) => {
+    assert.deepEqual(loadConfig(path).telegram.adminUserIds, ['123']);
+  });
+  withTempConfig({ telegram: { adminUserIds: 'nope' } }, (path) => {
+    assert.throws(() => loadConfig(path), /adminUserIds/);
+  });
+});
+
+test('welcomeMessage must be a string when present', () => {
+  withTempConfig({ telegram: { welcomeMessage: 123 } }, (path) => {
+    assert.throws(() => loadConfig(path), /welcomeMessage/);
+  });
+});
+
+test('welcomeMessage defaults to empty string', () => {
+  withTempConfig({}, (path) => {
+    const cfg = loadConfig(path);
+    assert.equal(cfg.telegram.welcomeMessage, '');
   });
 });
 
