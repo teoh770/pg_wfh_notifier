@@ -46,5 +46,6 @@ Only dependency is `node-cron` (timezone-aware scheduling). HTTP uses native `fe
 - Plain ESM JavaScript, no TypeScript, no build step.
 - No comments in source unless asked.
 - Tests use `node:test` + `node:assert/strict` in `tests/`, in-memory SQLite (`:memory:`), fake fetch/telegram/logger, injected clock. Cover checker decisions, fallback, weekend skip, idempotency, retry, subscriber fan-out/pruning, bot command handling, config validation, and tz/db helpers.
-- `config.json`, `data.sqlite*`, `node_modules/` are gitignored — never commit them; keep `config.example.json` in sync instead.
+- `config.json`, `data.sqlite*`, `node_modules/`, `backups/` are gitignored — never commit them; keep `config.example.json` in sync instead.
+- Deployment: `deploy.sh` (one-command deploy to the VPS), `deploy/wfh-notifier.service` (systemd unit), full guide in `DEPLOY.md`. Server app root is `/opt/wfh-notifier`, runs as system user `wfh`, Node 24 LTS.
 - Logs go through `src/log.js` (`logger.info/warn/error` with timestamps).

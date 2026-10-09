@@ -4,4 +4,5 @@ config.json
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+backups/
 .DS_Store

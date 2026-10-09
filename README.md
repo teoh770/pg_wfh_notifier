@@ -93,6 +93,14 @@ Only allowlisted users (by numeric id or username) can use the bot; everyone els
 | `telegram.welcomeMessage` | built-in text | Welcome text sent on `/subscribe`; supports `{name}` placeholder |
 | `database.path` | `data.sqlite` | SQLite database file |
 
+## Deployment
+
+Run the notifier permanently on a Linux VPS with systemd — see **[DEPLOY.md](DEPLOY.md)** for the full guide. Quick version:
+
+```
+./deploy.sh root@YOUR_SERVER_IP
+```
+
 ## Database
 
 - `readings` — every hourly API reading ever polled (upserted by station + timestamp)

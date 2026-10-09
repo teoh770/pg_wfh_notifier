@@ -1,0 +1,21 @@
+[Unit]
+Description=Penang WFH Haze Notifier (Telegram bot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wfh
+Group=wfh
+WorkingDirectory=/opt/wfh-notifier
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/wfh-notifier
+
+[Install]
+WantedBy=multi-user.target
