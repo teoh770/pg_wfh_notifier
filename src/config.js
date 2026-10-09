@@ -91,8 +91,6 @@ export function loadConfig(path = process.env.CONFIG_PATH || 'config.json') {
   cfg.telegram.chatId = String(cfg.telegram.chatId ?? '').trim();
   if ((cfg.telegram.botToken === '') !== (cfg.telegram.chatId === '')) {
     console.warn('[WARN] Only one of telegram.botToken / telegram.chatId is set — Telegram notices disabled until both are set.');
-    cfg.telegram.botToken = '';
-    cfg.telegram.chatId = '';
   }
   return cfg;
 }
