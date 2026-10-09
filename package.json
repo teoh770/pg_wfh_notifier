@@ -1,0 +1,20 @@
+{
+  "name": "pg-wfh-notifier",
+  "version": "1.0.0",
+  "description": "Telegram notifier that announces Work From Home when the Penang haze (API) reading crosses a threshold",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "once": "node src/index.js --once",
+    "chat-id": "node src/index.js --chat-id",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=23.4.0"
+  },
+  "dependencies": {
+    "node-cron": "^4.0.0"
+  }
+}

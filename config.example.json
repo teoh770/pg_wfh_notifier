@@ -1,0 +1,23 @@
+{
+  "api": {
+    "url": "https://eqms.doe.gov.my/api3/publicportalapims/apitablehourly?stateid=7&stationid=CA08P",
+    "pollCron": "0 5 * * * *",
+    "timeoutMs": 15000
+  },
+  "wfh": {
+    "checkTime": "21:00",
+    "fallbackTime": "20:00",
+    "retryMinutes": 30,
+    "retryIntervalMinutes": 10,
+    "threshold": 200,
+    "timezone": "Asia/Kuala_Lumpur",
+    "weekendDays": [0, 6]
+  },
+  "telegram": {
+    "botToken": "123456789:ABC-put-your-botfather-token-here",
+    "chatId": "123456789"
+  },
+  "database": {
+    "path": "data.sqlite"
+  }
+}
